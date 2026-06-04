@@ -1495,12 +1495,34 @@ async function _clickAndReadKeyNano(pageValue, networkSnipedKey, logCallbackValu
 // =============================================================
 async function _solveCloudflareIfPresent(pageValue, logCallbackValue) {
   try {
+    // Nhận diện nhanh xem trang có đang bị Cloudflare chặn không (chờ tối đa 5s)
+    let isCloudflare = false;
+    for (let i = 0; i < 5; i++) {
+      const title = await pageValue.title().catch(() => '');
+      const text = await pageValue.evaluate(() => document.body.innerText).catch(() => '');
+      const hasIframe = await pageValue.locator('iframe[src*="turnstile"], iframe[src*="cloudflare"], iframe[src*="challenges"]').count().catch(() => 0);
+      
+      if (title.includes('Just a moment') || title.includes('Cloudflare') || text.includes('Verify you are human') || hasIframe > 0) {
+        isCloudflare = true;
+        break;
+      }
+      await _waitForTimeout(1000);
+    }
+
+    if (!isCloudflare) return; // Không có CF, đi tiếp bình thường
+
+    logCallbackValue(`🛡️ [Bảo mật] Trang đang bị Cloudflare chặn. Chờ ô checkbox xuất hiện...`);
+    
     // 1. Kiểm tra iframe Cloudflare (Turnstile)
     const turnstileIframe = pageValue.frameLocator('iframe[src*="turnstile"], iframe[src*="cloudflare"], iframe[src*="challenges"]').first();
     const iframeCheckbox = turnstileIframe.locator('.ctp-checkbox-label, input[type="checkbox"], #cb-c').first();
     
     let isIframeVisible = false;
-    try { isIframeVisible = await iframeCheckbox.isVisible({ timeout: 2000 }); } catch (e) {}
+    try { 
+      // Chờ tối đa 10s để ô checkbox render xong
+      await iframeCheckbox.waitFor({ state: 'visible', timeout: 10000 });
+      isIframeVisible = true; 
+    } catch (e) {}
 
     if (isIframeVisible) {
       logCallbackValue(`🛡️ [Bảo mật] Phát hiện Cloudflare "I am human" (Iframe) - Đang tự động click...`);
@@ -1511,24 +1533,30 @@ async function _solveCloudflareIfPresent(pageValue, logCallbackValue) {
       } else {
         await iframeCheckbox.click({ force: true });
       }
-      logCallbackValue(`🛡️ [Bảo mật] Đã click! Chờ 6 giây để hệ thống duyệt...`);
-      await _waitForTimeout(6000);
+      logCallbackValue(`🛡️ [Bảo mật] Đã click! Chờ hệ thống duyệt và chuyển trang...`);
+      // Đợi trang load xong sau khi click
+      await pageValue.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => null);
+      await _waitForTimeout(3000);
       return;
     }
 
     // 2. Kiểm tra trên trang chính (trực tiếp không qua iframe)
     const mainCheckbox = pageValue.locator('.ctp-checkbox-label, #cb-c, label:has-text("Verify you are human"), label:has-text("I am human")').first();
     let isMainVisible = false;
-    try { isMainVisible = await mainCheckbox.isVisible({ timeout: 1000 }); } catch (e) {}
+    try { 
+      await mainCheckbox.waitFor({ state: 'visible', timeout: 3000 });
+      isMainVisible = true; 
+    } catch (e) {}
 
     if (isMainVisible) {
       logCallbackValue(`🛡️ [Bảo mật] Phát hiện Cloudflare "I am human" (Main) - Đang tự động click...`);
       await mainCheckbox.click({ force: true });
-      logCallbackValue(`🛡️ [Bảo mật] Đã click! Chờ 6 giây để hệ thống duyệt...`);
-      await _waitForTimeout(6000);
+      logCallbackValue(`🛡️ [Bảo mật] Đã click! Chờ hệ thống duyệt và chuyển trang...`);
+      await pageValue.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => null);
+      await _waitForTimeout(3000);
     }
   } catch (err) {
-    // Không làm gì nếu lỗi (nghĩa là không có Cloudflare)
+    // Không làm gì nếu lỗi
   }
 }
 
