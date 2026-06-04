@@ -1733,7 +1733,12 @@ async function _runNanoBananaAutomation(eventValue, accountValue, proxyValue, lo
 
     // Ghi đè clipboard API ngay từ đầu để hứng key copy và vô hiệu hóa Passkey (WebAuthn)
     await contextValue.addInitScript(() => {
-      // Đã mở khóa WebAuthn để hiển thị bảng Passkey gốc của Windows cho người dùng tự click.
+      // Vô hiệu hóa WebAuthn để chặn Windows Passkey popup
+      if (window.navigator && window.navigator.credentials) {
+        window.navigator.credentials.get = async () => Promise.reject(new Error("NotAllowedError: WebAuthn is disabled"));
+        window.navigator.credentials.create = async () => Promise.reject(new Error("NotAllowedError: WebAuthn is disabled"));
+      }
+      window.PublicKeyCredential = undefined;
 
       // Fake Clipboard
       const originalClipboard = navigator.clipboard;
@@ -2236,6 +2241,13 @@ async function _runKieAutomation(eventValue, accountValue, proxyValue, logCallba
 
     // Ghi đè clipboard API (bắt cả navigator.clipboard.writeText, execCommand, và thư viện copy-to-clipboard)
     await contextValue.addInitScript(() => {
+      // Vô hiệu hóa WebAuthn để chặn Windows Passkey popup
+      if (window.navigator && window.navigator.credentials) {
+        window.navigator.credentials.get = async () => Promise.reject(new Error("NotAllowedError: WebAuthn is disabled"));
+        window.navigator.credentials.create = async () => Promise.reject(new Error("NotAllowedError: WebAuthn is disabled"));
+      }
+      window.PublicKeyCredential = undefined;
+
       // 1. Intercept navigator.clipboard.writeText (API hiện đại)
       const originalClipboard = navigator.clipboard;
       const fakeClipboard = {
