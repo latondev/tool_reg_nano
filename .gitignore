@@ -1,0 +1,34 @@
+# Node dependencies - DO NOT commit these
+node_modules/
+gui/node_modules/
+
+# Electron build output
+gui/dist/
+gui/build/
+*.exe
+*.dmg
+*.AppImage
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Python virtual environment
+venv/
+env/
+.env
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
