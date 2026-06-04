@@ -2142,7 +2142,7 @@ async function _runKieAutomation(eventValue, accountValue, proxyValue, logCallba
     logCallbackValue(`[Kie AI] Khởi chạy trình duyệt CloakBrowser...`);
     contextValue = await launchPersistentContext(launchOptionsValue);
 
-    // Ghi đè clipboard API (y hệt NanoBanana - bắt cả navigator.clipboard.writeText lẫn execCommand)
+    // Ghi đè clipboard API (bắt cả navigator.clipboard.writeText, execCommand, và thư viện copy-to-clipboard)
     await contextValue.addInitScript(() => {
       // 1. Intercept navigator.clipboard.writeText (API hiện đại)
       const originalClipboard = navigator.clipboard;
@@ -2156,31 +2156,62 @@ async function _runKieAutomation(eventValue, accountValue, proxyValue, logCallba
       };
       Object.defineProperty(navigator, 'clipboard', { value: fakeClipboard, configurable: true });
 
-      // 2. Intercept execCommand('copy') - cách cũ nhiều trang vẫn dùng
+      // 2. Intercept HTMLTextAreaElement.prototype.select và HTMLInputElement.prototype.select
+      // Thư viện copy-to-clipboard tạo textarea ẩn → set value → select() → execCommand('copy') → xóa textarea
+      // Phải bắt value TẠI THỜI ĐIỂM select() được gọi, trước khi textarea bị xóa
+      const origTextareaSelect = HTMLTextAreaElement.prototype.select;
+      HTMLTextAreaElement.prototype.select = function() {
+        if (this.value && this.value.trim().length >= 10) {
+          window._pendingCopyValue = this.value.trim();
+        }
+        return origTextareaSelect.call(this);
+      };
+      const origInputSelect = HTMLInputElement.prototype.select;
+      HTMLInputElement.prototype.select = function() {
+        if (this.value && this.value.trim().length >= 10) {
+          window._pendingCopyValue = this.value.trim();
+        }
+        return origInputSelect.call(this);
+      };
+
+      // 3. Intercept execCommand('copy') - dùng _pendingCopyValue từ textarea.select() nếu có
       const origExecCommand = document.execCommand.bind(document);
       document.execCommand = function(cmd, ...args) {
         const result = origExecCommand(cmd, ...args);
         if (cmd === 'copy') {
-          const sel = window.getSelection ? window.getSelection().toString() : '';
-          if (sel) window.lastCopiedKeyValue = sel;
+          // Ưu tiên: giá trị từ textarea.select() hook (copy-to-clipboard pattern)
+          if (window._pendingCopyValue) {
+            window.lastCopiedKeyValue = window._pendingCopyValue;
+            window._pendingCopyValue = null;
+          } else {
+            // Fallback: selection text (Ctrl+C pattern)
+            const sel = window.getSelection ? window.getSelection().toString() : '';
+            if (sel) window.lastCopiedKeyValue = sel;
+          }
         }
         return result;
       };
 
-      // 3. Bắt copy event truyền thống (DataTransfer API)
+      // 4. Bắt copy event (DataTransfer API - thêm một lớp bảo vệ nữa)
       document.addEventListener('copy', (e) => {
         try {
           const clipData = e.clipboardData || window.clipboardData;
           if (clipData) {
             const text = clipData.getData('text/plain') || clipData.getData('text');
-            if (text && text.trim()) { window.lastCopiedKeyValue = text.trim(); return; }
+            if (text && text.trim().length >= 10) { window.lastCopiedKeyValue = text.trim(); return; }
           }
         } catch(err) {}
-        // Fallback: selection
-        const sel = window.getSelection ? window.getSelection().toString() : '';
-        if (sel) window.lastCopiedKeyValue = sel;
+        // Fallback: selection hoặc pending value
+        if (window._pendingCopyValue) {
+          window.lastCopiedKeyValue = window._pendingCopyValue;
+          window._pendingCopyValue = null;
+        } else {
+          const sel = window.getSelection ? window.getSelection().toString() : '';
+          if (sel && sel.trim().length >= 10) window.lastCopiedKeyValue = sel;
+        }
       });
     });
+
 
     // Nạp Cookie Microsoft
     if (accountValue.cookie && accountValue.cookie.trim()) {
