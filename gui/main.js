@@ -2040,8 +2040,8 @@ async function _runKieAutomation(eventValue, accountValue, proxyValue, logCallba
       geoip: !!proxyValue, // match browser TZ/locale/WebRTC to proxy IP (strong anti-mismatch signal); requires mmdb-lib
       locale: 'en-US',
       timezoneId: 'America/New_York',
-      viewport: { width: 640, height: 400 },
-      args: ['--window-size=640,400']
+      viewport: { width: 1366, height: 768 },
+      args: ['--window-size=1366,768', '--no-sandbox']
     };
 
     if (proxyValue) {
@@ -2114,43 +2114,92 @@ async function _runKieAutomation(eventValue, accountValue, proxyValue, logCallba
       await _humanMicroIdle(pageValue, logCallbackValue);
     } catch (e) {}
 
-    // Click Login
-    logCallbackValue(`[Kie AI] Đang tìm và click "Login" bằng DOM...`);
-    await pageValue.waitForLoadState('networkidle', { timeout: 10000 });
+    // Click Get Started / Login
+    logCallbackValue(`[Kie AI] Đang tìm và click nút "Get Started / Login" bằng DOM...`);
+    await pageValue.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => null);
 
+    // Ưu tiên 1: Tìm nút button có text chính xác là "Get Started" trong header nav
     let clickedLoginValue = await pageValue.evaluate(() => {
-      const elementsValue = Array.from(document.querySelectorAll('a, button, span, div'));
-      const btnValue = elementsValue.find(el => el.textContent.trim().toLowerCase() === 'login' || el.textContent.trim().toLowerCase() === 'sign in');
-      if (btnValue) {
-        btnValue.click(); const eventValue = new MouseEvent('click', { view: window, bubbles: true, cancelable: true, buttons: 1 }); btnValue.dispatchEvent(eventValue); return true;
+      // Tìm thẻ button với text chính xác "Get Started" (nút trong nav header)
+      const buttons = Array.from(document.querySelectorAll('button'));
+      const getStartedBtn = buttons.find(b => b.textContent.trim() === 'Get Started');
+      if (getStartedBtn) {
+        getStartedBtn.click();
+        const ev = new MouseEvent('click', { view: window, bubbles: true, cancelable: true, buttons: 1 });
+        getStartedBtn.dispatchEvent(ev);
+        return true;
+      }
+      // Fallback: tìm link login / sign in
+      const links = Array.from(document.querySelectorAll('a, button'));
+      const loginBtn = links.find(el => {
+        const text = el.textContent.trim().toLowerCase();
+        return text === 'login' || text === 'sign in';
+      });
+      if (loginBtn) {
+        loginBtn.click();
+        return true;
       }
       return false;
     });
 
     if (!clickedLoginValue) {
-      await pageValue.click('text="Login"').catch(() => null);
+      // Fallback: dùng Playwright locator
+      await pageValue.locator('button:has-text("Get Started")').first().click({ timeout: 5000 }).catch(() => null);
     }
-    await _waitForTimeout(3000);
+    
+    // Thêm thời gian chờ modal xuất hiện
+    await _waitForTimeout(2500);
 
-    // Chọn đăng nhập bằng Microsoft
-    logCallbackValue(`[Kie AI] Đang click chọn đăng nhập qua Microsoft...`);
+    // Chọn đăng nhập bằng Microsoft trong modal
+    logCallbackValue(`[Kie AI] Chờ modal login xuất hiện và click "Sign in with Microsoft"...`);
     let loginPageValue = pageValue;
 
+    // Chờ modal có nút Microsoft bằng locator (với timeout đủ để modal render)
+    let microsoftBtnLocator = null;
+    for (let i = 0; i < 10; i++) {
+      const count = await pageValue.locator('button:has-text("Sign in with Microsoft"), a:has-text("Sign in with Microsoft")').count().catch(() => 0);
+      if (count > 0) {
+        microsoftBtnLocator = pageValue.locator('button:has-text("Sign in with Microsoft"), a:has-text("Sign in with Microsoft")').first();
+        break;
+      }
+      await _waitForTimeout(500);
+    }
+
+    if (!microsoftBtnLocator) {
+      // Fallback evaluate tìm theo text includes
+      logCallbackValue(`[Kie AI] Không tìm thấy nút Microsoft qua locator, thử evaluate...`);
+    }
+
     const [popupPageValue] = await Promise.all([
-      pageValue.waitForEvent('popup', { timeout: 10000 }).catch(() => null),
-      pageValue.evaluate(() => {
-        const elementsValue = Array.from(document.querySelectorAll('a, button, span, div'));
-        const btnValue = elementsValue.find(el => el.textContent.trim().toLowerCase().includes('microsoft'));
-        if (btnValue) {
-          btnValue.click(); const eventValue = new MouseEvent('click', { view: window, bubbles: true, cancelable: true, buttons: 1 }); btnValue.dispatchEvent(eventValue); return true;
+      pageValue.waitForEvent('popup', { timeout: 12000 }).catch(() => null),
+      (async () => {
+        if (microsoftBtnLocator) {
+          try {
+            await microsoftBtnLocator.click({ timeout: 5000 });
+            logCallbackValue(`[Kie AI] Đã click "Sign in with Microsoft" (locator).`);
+            return true;
+          } catch(e) {}
         }
-        return false;
-      })
+        // Fallback evaluate
+        return await pageValue.evaluate(() => {
+          const allEls = Array.from(document.querySelectorAll('button, a, span'));
+          const btn = allEls.find(el => el.textContent.trim().toLowerCase().includes('sign in with microsoft') || el.textContent.trim().toLowerCase().includes('microsoft'));
+          if (btn) {
+            btn.click();
+            const ev = new MouseEvent('click', { view: window, bubbles: true, cancelable: true, buttons: 1 });
+            btn.dispatchEvent(ev);
+            return true;
+          }
+          return false;
+        }).catch(() => false);
+      })()
     ]);
 
     if (popupPageValue) {
-      logCallbackValue(`[Kie AI] Đăng nhập qua cửa sổ popup Microsoft.`);
+      logCallbackValue(`[Kie AI] Đã phát hiện popup Microsoft Login.`);
       loginPageValue = popupPageValue;
+    } else {
+      logCallbackValue(`[Kie AI] Không thấy popup, kiểm tra xem trang chính có chuyển không...`);
     }
 
     // Đăng nhập Microsoft
@@ -2163,57 +2212,125 @@ async function _runKieAutomation(eventValue, accountValue, proxyValue, logCallba
 
     // Đợi popup đóng nếu có
     if (popupPageValue && !popupPageValue.isClosed()) {
-      for (let iValue = 0; iValue < 10; iValue++) {
-        if (popupPageValue.isClosed()) break;
-        await _waitForTimeout(1000);
-      }
+        await _waitForTimeout(3000);
     }
 
     logCallbackValue(`[Kie AI] Quay lại trang chính...`);
-    await pageValue.bringToFront();
-    await _waitForTimeout(5000);
+    try { await pageValue.bringToFront(); } catch(e) {}
+    await _waitForTimeout(3000);
 
-    // Cào API Key (UUID)
-    let keyFoundValue = false;
-    for (let iValue = 0; iValue < 20; iValue++) {
-      if (pageValue.isClosed()) {
-        logCallbackValue(`[Kie AI] Trình duyệt đã bị đóng.`);
-        if (contextValue) await contextValue.close().catch(() => null);
-        return;
-      }
+    // Điều hướng thẳng tới trang API Keys của Kie AI
+    logCallbackValue(`[Kie AI] Đang điều hướng tới trang API Keys...`);
+    await pageValue.goto('https://kie.ai/api-key', { waitUntil: 'domcontentloaded' }).catch(() => null);
+    await pageValue.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => null);
+    await _waitForTimeout(2500);
 
-      const apiKeyValue = await pageValue.evaluate(() => {
-        const textValue = document.body.innerText;
-        const uuidRegexValue = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-        const matchValue = textValue.match(uuidRegexValue);
-        if (matchValue) return matchValue[0];
-
-        const inputsValue = document.querySelectorAll('input');
-        for (const inputValue of inputsValue) {
-          const valValue = inputValue.value.trim();
-          const inputMatchValue = valValue.match(uuidRegexValue);
-          if (inputMatchValue) return inputMatchValue[0];
-        }
-        return null;
-      });
-
-      if (apiKeyValue) {
-        logCallbackValue(`[Kie AI] Cào API Key thành công: ${apiKeyValue}`);
-        _saveKeyToCache(emailValue, apiKeyValue, 'kie');
-        eventValue.sender.send('api-key-detected', { email: emailValue, apiKey: apiKeyValue, site: 'kie' });
-        keyFoundValue = true;
-        break;
-      }
+    // Kiểm tra URL xem đã vào đúng trang chưa
+    const kieApiUrl = pageValue.url();
+    logCallbackValue(`[Kie AI] URL hiện tại: ${kieApiUrl}`);
+    if (!kieApiUrl.includes('/api-key')) {
+      logCallbackValue(`[Kie AI] Thử click menu "API Keys" bên trái...`);
+      await pageValue.locator('a:has-text("API Keys"), a[href*="api-key"]').first().click({ timeout: 5000 }).catch(() => null);
+      await pageValue.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => null);
       await _waitForTimeout(2000);
     }
 
-    if (!keyFoundValue) {
-      logCallbackValue(`[Kie AI] Không tìm thấy API Key tự động. Trình duyệt mở 30 giây để kiểm tra thủ công.`);
-      await _waitForTimeout(30000);
-    } else {
-      await _waitForTimeout(3000);
+    // Xóa clipboard hệ thống
+    clipboard.writeText('');
+
+    // Click nút Copy (biểu tượng copy) trong bảng API Keys
+    logCallbackValue(`[Kie AI] Đang tìm và click icon Copy để lấy key...`);
+    let copyClickedKie = false;
+    for (let iValue = 0; iValue < 10; iValue++) {
+      if (pageValue.isClosed()) break;
+      copyClickedKie = await pageValue.evaluate(() => {
+        // Cách 1: Kie AI dùng icon class "iconify--mdi" (không phải lucide-copy)
+        const iconifyBtn = document.querySelector('svg.iconify--mdi');
+        if (iconifyBtn) {
+          const btn = iconifyBtn.closest('button');
+          if (btn) { btn.click(); return true; }
+        }
+
+        // Cách 2: Tìm button nằm ngay sau thẻ <code> chứa key bị che (****)
+        const codeEls = Array.from(document.querySelectorAll('code'));
+        for (const code of codeEls) {
+          const text = code.textContent || '';
+          if (text.includes('*') && text.length > 10) {
+            // Button copy thường nằm trong cùng div cha
+            const parent = code.closest('div');
+            if (parent) {
+              const btn = parent.querySelector('button');
+              if (btn) { btn.click(); return true; }
+            }
+          }
+        }
+
+        // Cách 3: tìm button rỗng (chỉ chứa svg) gần key row
+        const allBtns = Array.from(document.querySelectorAll('button'));
+        for (const btn of allBtns) {
+          if (btn.querySelector('svg') && !btn.textContent.trim()) { btn.click(); return true; }
+        }
+
+        // Cách 4: aria-label / title
+        const attrBtn = document.querySelector('[aria-label*="copy" i], [title*="copy" i]');
+        if (attrBtn) { attrBtn.click(); return true; }
+        return false;
+      }).catch(() => false);
+
+      if (copyClickedKie) {
+        logCallbackValue(`[Kie AI] Đã click icon Copy.`);
+        break;
+      }
+      await _waitForTimeout(1000);
     }
 
+    await _waitForTimeout(1500);
+
+    // Cào API Key: ưu tiên FakeClipboard -> Clipboard thật -> UUID Regex scan
+    let apiKeyValue = await pageValue.evaluate(() => window.lastCopiedKeyValue).catch(() => null);
+    if (!apiKeyValue || apiKeyValue.trim() === '') {
+      try { apiKeyValue = clipboard.readText(); } catch(e) {}
+    }
+
+    // Fallback: UUID / sk- scan trên DOM
+    if (!apiKeyValue || apiKeyValue.trim() === '') {
+      apiKeyValue = await pageValue.evaluate(() => {
+        const textValue = document.body.innerText;
+        // UUID format (8-4-4-4-12)
+        const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+        const uuidMatch = textValue.match(uuidRegex);
+        if (uuidMatch) return uuidMatch[0];
+        // Hex 32 chars (kiểu NanoBanana / Kie)
+        const hexRegex = /\b[0-9a-f]{32}\b/i;
+        const hexMatch = textValue.match(hexRegex);
+        if (hexMatch) return hexMatch[0];
+        // Quét trong input value
+        const inputs = document.querySelectorAll('input');
+        for (const input of inputs) {
+          const val = input.value.trim();
+          if (uuidRegex.test(val)) return val.match(uuidRegex)[0];
+          if (hexRegex.test(val)) return val.match(hexRegex)[0];
+        }
+        // Quét trong code elements (key bị che)
+        const codes = document.querySelectorAll('code');
+        for (const code of codes) {
+          const val = code.getAttribute('data-full') || code.dataset.key || '';
+          if (val.length >= 20) return val;
+        }
+        return null;
+      }).catch(() => null);
+
+      if (apiKeyValue) {
+        logCallbackValue(`✅ [Kie AI] Lấy API Key thành công: ${apiKeyValue.trim()}`);
+        _saveKeyToCache(emailValue, apiKeyValue.trim(), 'kie');
+        eventValue.sender.send('api-key-detected', { email: emailValue, apiKey: apiKeyValue.trim(), site: 'kie' });
+      } else {
+        logCallbackValue(`[Kie AI] Không tìm thấy API Key tự động. Trình duyệt mở 30 giây để kiểm tra thủ công.`);
+        await _waitForTimeout(30000);
+      }
+    } // end if (!apiKeyValue || ...)
+
+    await _waitForTimeout(3000);
     await contextValue.close();
     logCallbackValue(`[Kie AI] Trình duyệt đã đóng.`);
 
