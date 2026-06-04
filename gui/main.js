@@ -1511,7 +1511,7 @@ async function _solveCloudflareIfPresent(pageValue, logCallbackValue) {
 
     if (!isCloudflare) return; // Không có CF, đi tiếp bình thường
 
-    logCallbackValue(`🛡️ [Bảo mật] Trang đang bị Cloudflare chặn. Chờ ô checkbox xuất hiện...`);
+    logCallbackValue(`🛡️ [Bảo mật] Trang đang bị Cloudflare chặn. Đang thử tự động click...`);
     
     // 1. Kiểm tra iframe Cloudflare (Turnstile)
     const turnstileIframe = pageValue.frameLocator('iframe[src*="turnstile"], iframe[src*="cloudflare"], iframe[src*="challenges"]').first();
@@ -1519,13 +1519,12 @@ async function _solveCloudflareIfPresent(pageValue, logCallbackValue) {
     
     let isIframeVisible = false;
     try { 
-      // Chờ tối đa 10s để ô checkbox render xong
-      await iframeCheckbox.waitFor({ state: 'visible', timeout: 10000 });
+      // Chờ tối đa 5s để ô checkbox render xong
+      await iframeCheckbox.waitFor({ state: 'visible', timeout: 5000 });
       isIframeVisible = true; 
     } catch (e) {}
 
     if (isIframeVisible) {
-      logCallbackValue(`🛡️ [Bảo mật] Phát hiện Cloudflare "I am human" (Iframe) - Đang tự động click...`);
       const box = await iframeCheckbox.boundingBox();
       if (box) {
         await pageValue.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 });
@@ -1533,28 +1532,51 @@ async function _solveCloudflareIfPresent(pageValue, logCallbackValue) {
       } else {
         await iframeCheckbox.click({ force: true });
       }
-      logCallbackValue(`🛡️ [Bảo mật] Đã click! Chờ hệ thống duyệt và chuyển trang...`);
-      // Đợi trang load xong sau khi click
-      await pageValue.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => null);
-      await _waitForTimeout(3000);
-      return;
+      logCallbackValue(`🛡️ [Bảo mật] Đã click! Chờ hệ thống duyệt tự động...`);
+      await _waitForTimeout(4000);
+    } else {
+      // 2. Kiểm tra trên trang chính (trực tiếp không qua iframe)
+      const mainCheckbox = pageValue.locator('.ctp-checkbox-label, #cb-c, label:has-text("Verify you are human"), label:has-text("I am human")').first();
+      let isMainVisible = false;
+      try { 
+        await mainCheckbox.waitFor({ state: 'visible', timeout: 3000 });
+        isMainVisible = true; 
+      } catch (e) {}
+
+      if (isMainVisible) {
+        await mainCheckbox.click({ force: true });
+        logCallbackValue(`🛡️ [Bảo mật] Đã click! Chờ hệ thống duyệt tự động...`);
+        await _waitForTimeout(4000);
+      }
     }
 
-    // 2. Kiểm tra trên trang chính (trực tiếp không qua iframe)
-    const mainCheckbox = pageValue.locator('.ctp-checkbox-label, #cb-c, label:has-text("Verify you are human"), label:has-text("I am human")').first();
-    let isMainVisible = false;
-    try { 
-      await mainCheckbox.waitFor({ state: 'visible', timeout: 3000 });
-      isMainVisible = true; 
-    } catch (e) {}
-
-    if (isMainVisible) {
-      logCallbackValue(`🛡️ [Bảo mật] Phát hiện Cloudflare "I am human" (Main) - Đang tự động click...`);
-      await mainCheckbox.click({ force: true });
-      logCallbackValue(`🛡️ [Bảo mật] Đã click! Chờ hệ thống duyệt và chuyển trang...`);
-      await pageValue.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => null);
-      await _waitForTimeout(3000);
+    // =========================================================
+    // CHỜ NGƯỜI DÙNG GIẢI TAY (60s) NẾU TỰ ĐỘNG KHÔNG QUA ĐƯỢC
+    // =========================================================
+    logCallbackValue(`🛡️ [Bảo mật] Kiểm tra lại xem đã vượt qua Cloudflare chưa...`);
+    for (let c = 0; c < 60; c++) {
+      if (pageValue.isClosed()) break;
+      
+      const title = await pageValue.title().catch(() => '');
+      const text = await pageValue.evaluate(() => document.body.innerText).catch(() => '');
+      const stillHasIframe = await pageValue.locator('iframe[src*="turnstile"], iframe[src*="cloudflare"]').count().catch(() => 0);
+      
+      const stillHasCaptcha = title.includes('Just a moment') || title.includes('Cloudflare') || text.includes('Verify you are human') || stillHasIframe > 0;
+      
+      if (!stillHasCaptcha) {
+        logCallbackValue(`✅ [Bảo mật] Đã vượt qua Cloudflare, tiếp tục xử lý...`);
+        break;
+      }
+      if (c === 0) {
+        logCallbackValue(`⚠️ [Bảo mật] Chưa qua được. Tạm dừng tối đa 60 giây để bạn giải hình ảnh bằng tay (nếu có)...`);
+      }
+      await _waitForTimeout(1000);
     }
+
+    // Đợi trang load ổn định sau khi giải
+    await pageValue.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => null);
+    await _waitForTimeout(3000);
+
   } catch (err) {
     // Không làm gì nếu lỗi
   }
