@@ -1,0 +1,32 @@
+{
+  "name": "nanobanana-desktop-hub",
+  "version": "1.0.0",
+  "description": "Premium Glassmorphism Desktop Client for NanoBanana API",
+  "main": "main.js",
+  "scripts": {
+    "start": "chcp 65001 && electron .",
+    "package-win": "electron-packager . NanoBananaHub --platform=win32 --arch=x64 --out=dist --overwrite"
+  },
+  "keywords": [
+    "nanobanana",
+    "desktop",
+    "electron",
+    "gui"
+  ],
+  "author": "Antigravity",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.17.0",
+    "cloakbrowser": "^0.3.31",
+    "ghost-cursor": "^1.4.2",
+    "mmdb-lib": "^3.0.0",
+    "playwright": "^1.60.0",
+    "playwright-core": "^1.60.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "devDependencies": {
+    "electron": "^30.0.6",
+    "electron-packager": "^17.1.2"
+  }
+}

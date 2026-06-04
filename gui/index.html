@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NanoBanana API Hub - VPS & GUI Dashboard</title>
+  <meta name="description" content="Hệ quản trị API NanoBanana chuyên nghiệp - Kết nối an toàn VPS và GUI Client">
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="stars-background"></div>
+  <div class="glowing-orb orb-1"></div>
+  <div class="glowing-orb orb-2"></div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+        </svg>
+        <h1 class="logo-text">NanoBanana <span>API Hub</span></h1>
+      </div>
+    </header>
+
+    <!-- Main Dashboard Grid -->
+    <main class="dashboard-grid single-column">
+      
+      <!-- Right Column: Main Services (Now occupies full width) -->
+      <section class="services-panel">
+        
+        <!-- Tab Navigation Menu -->
+        <div class="tab-navigation">
+          <button class="tab-btn active" data-tab="nanobanana-tab">
+            <svg class="tab-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+            </svg>
+            <span>NanoBanana API</span>
+          </button>
+          <button class="tab-btn" data-tab="kie-ai-tab">
+            <svg class="tab-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+            </svg>
+            <span>Kie AI</span>
+          </button>
+          <button class="tab-btn" data-tab="getkey-tab">
+            <svg class="tab-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+            <span>GetKey Nano And Kie</span>
+          </button>
+        </div>
+
+        <!-- Tab Contents Area -->
+        <div class="tab-content-container">
+          
+          <!-- Tab 1: NanoBanana API (Active) -->
+          <div id="nanobanana-tab" class="tab-content active">
+            <div class="action-grid">
+              
+              <!-- Card 1: Login -->
+              <div class="glass-card action-card">
+                <div class="card-glow-bg glow-purple"></div>
+                <div class="card-icon-wrapper circle-purple">
+                  <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                </div>
+                <h3>Mở Trình Duyệt Login</h3>
+                <p>Mở trang quản lý NanoBanana chính thức để đăng nhập tài khoản của bạn và lấy API Key.</p>
+                <button id="login-btn" class="btn btn-action btn-purple">
+                  <span>Login to NanoBanana</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="arrow-icon">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                    <polyline points="12 5 19 12 12 19"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Card 2: Lấy Số Dư Credit (Tích hợp nhập API Key) -->
+              <div class="glass-card action-card">
+                <div class="card-glow-bg glow-green"></div>
+                <div class="card-icon-wrapper circle-green">
+                  <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="5" width="20" height="14" rx="2" ry="2"/>
+                    <line x1="2" y1="10" x2="22" y2="10"/>
+                  </svg>
+                </div>
+                <h3>Lấy Số Dư Credit</h3>
+                <p>Nhập API Key NanoBanana để truy xuất số credit tài khoản thông qua VPS Gateway.</p>
+                
+                <!-- Tích hợp ô nhập API Key -->
+                <div class="credit-key-input-group">
+                  <input type="password" id="api-key-input" placeholder="Dán API Key của bạn vào đây...">
+                </div>
+
+                <div class="credit-display">
+                  <span id="credit-number" class="credit-num">0</span>
+                  <span class="credit-label">Credits</span>
+                </div>
+
+                <button id="get-credit-btn" class="btn btn-action btn-green">
+                  <span>Get Account Credits</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="arrow-icon">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                    <polyline points="12 5 19 12 12 19"/>
+                  </svg>
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Tab 2: Kie AI (Quản lý Account, Cookie Login & Lưu Key) -->
+          <div id="kie-ai-tab" class="tab-content">
+            <div class="glass-card action-card full-width-card">
+              <div class="card-glow-bg glow-cyan"></div>
+              <div class="card-header">
+                <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="9" y1="3" x2="9" y2="21"/>
+                  <line x1="15" y1="3" x2="15" y2="21"/>
+                  <line x1="3" y1="9" x2="21" y2="9"/>
+                  <line x1="3" y1="15" x2="21" y2="15"/>
+                </svg>
+                <h2>Quản Lý Tài Khoản & Auto Tạo Key "Kie AI"</h2>
+              </div>
+              <p class="card-desc">Dán danh sách tài khoản (Email|Pass|Cookie|...) để tự động đăng nhập Microsoft Cookie và lưu trữ trực tiếp API Keys tạo ra tương ứng với từng tài khoản.</p>
+              
+              <div class="ms-input-area">
+                <textarea id="kie-accounts-textarea" placeholder="Dán danh sách tài khoản tại đây...&#10;Ví dụ: LobosElfreda26@hotmail.com|4J4jP51n971c|M.C549...|..."></textarea>
+                <div style="display: flex; gap: 12px; z-index: 1;">
+                  <button id="kie-import-btn" class="btn btn-primary">Import & Phân Tích</button>
+                  <button id="kie-check-all-btn" class="btn btn-action btn-green" style="width: auto; padding: 12px 24px;" disabled>Check All Credits</button>
+                </div>
+              </div>
+
+              <!-- Thống kê sơ bộ -->
+              <div class="bulk-stats-grid">
+                <div class="stat-card">
+                  <span class="stat-val" id="kie-stat-total">0</span>
+                  <span class="stat-label">Tổng số Acc</span>
+                </div>
+                <div class="stat-card">
+                  <span class="stat-val text-green" id="kie-stat-live-keys">0</span>
+                  <span class="stat-label">Keys Đang Live</span>
+                </div>
+                <div class="stat-card">
+                  <span class="stat-val text-cyan" id="kie-stat-total-credits">0</span>
+                  <span class="stat-label">Tổng Credits</span>
+                </div>
+              </div>
+
+              <!-- Danh sách tài khoản đã import -->
+              <div class="ms-accounts-list-container">
+                <table class="ms-accounts-table">
+                  <thead>
+                    <tr>
+                      <th>Email</th>
+                      <th style="width: 150px;">Cookie Microsoft</th>
+                      <th style="width: 140px;">Hành Động</th>
+                      <th style="width: 250px;">API Key Đã Tạo</th>
+                      <th style="width: 120px;">Credits</th>
+                    </tr>
+                  </thead>
+                  <tbody id="kie-accounts-tbody">
+                    <tr>
+                      <td colspan="5" class="empty-table-msg">Chưa có tài khoản nào được nạp. Hãy dán danh sách tài khoản lên trên.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Tab 3: GetKey Nano And Kie (Đăng nhập via Proxy, Profile mới) -->
+          <div id="getkey-tab" class="tab-content">
+            <div class="glass-card action-card full-width-card">
+              <div class="card-glow-bg glow-purple"></div>
+              <div class="card-header">
+                <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.778-7.778zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                </svg>
+                <h2>Tự Động Lấy Key "GetKey Nano And Kie" qua Proxy & Fingerprint Sạch</h2>
+              </div>
+              <p class="card-desc">Nhập danh sách tài khoản (Email|Pass|Cookie) ở ô bên trái, và danh sách Proxy ở ô bên phải tương ứng theo dòng. Khi nhấn "Get Key", trình duyệt CloakBrowser sẽ được mở với Profile hoàn toàn mới và Proxy tương ứng.</p>
+              
+              <div class="ms-input-area" style="gap: 16px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; z-index: 1;">
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em;">Tài khoản (Email|Pass|Cookie)</label>
+                    <textarea id="getkey-accounts-textarea" placeholder="Dán danh sách tài khoản tại đây...&#10;Ví dụ: LobosElfreda26@hotmail.com|4J4jP51n971c|M.C549..." style="height: 140px;"></textarea>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <label style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em;">Proxy (Mỗi dòng một Proxy)</label>
+                    <textarea id="getkey-proxies-textarea" placeholder="Dán danh sách Proxy tại đây (Mỗi dòng một Proxy)...&#10;Ví dụ: 125.235.4.12:8080:user1:pass1" style="height: 140px;"></textarea>
+                  </div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px; width: 100%; z-index: 1;">
+                  <label style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em;">DongVan API Key (Dùng chung cho tất cả tài khoản)</label>
+                  <input type="password" id="dongvan-global-apikey" placeholder="Nhập DongVan API Key dùng chung (Ví dụ: JUficfgBHbq5hD7hhQamzoRSy)..." style="width: 100%; padding: 12px 20px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; color: #fff; outline: none; border-color: rgba(255, 255, 255, 0.12); font-family: var(--font-family);">
+                </div>
+                <div style="display: flex; gap: 12px; z-index: 1; align-items: center;">
+                  <select id="getkey-site-select" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 12px 20px; color: #fff; font-family: var(--font-family); font-weight: 600; outline: none; cursor: pointer; border-color: rgba(255, 255, 255, 0.12);">
+                    <option value="nanobanana" selected>NanoBanana (nanobananaapi.ai)</option>
+                    <option value="kie">Kie AI (kie.ai)</option>
+                  </select>
+                  <button id="getkey-login-btn" class="btn btn-purple" style="width: auto; padding: 12px 32px;">Login</button>
+                  <button id="getkey-load-data-btn" class="btn btn-action btn-green" style="width: auto; padding: 12px 24px;">Tải từ Data</button>
+                </div>
+              </div>
+
+              <!-- Thống kê -->
+              <div class="bulk-stats-grid">
+                <div class="stat-card">
+                  <span class="stat-val" id="getkey-stat-total">0</span>
+                  <span class="stat-label">Tổng số Acc</span>
+                </div>
+                <div class="stat-card">
+                  <span class="stat-val text-green" id="getkey-stat-live-keys">0</span>
+                  <span class="stat-label">Keys Đang Live</span>
+                </div>
+                <div class="stat-card">
+                  <span class="stat-val text-cyan" id="getkey-stat-total-credits">0</span>
+                  <span class="stat-label">Tổng Credits</span>
+                </div>
+              </div>
+
+              <!-- Danh sách tài khoản -->
+              <div class="ms-accounts-list-container">
+                <table class="ms-accounts-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 220px;">Email</th>
+                      <th style="width: 100px;">Hành Động</th>
+                      <th style="width: 250px;">API Key Đã Tạo</th>
+                      <th style="width: 140px;">Credits</th>
+                    </tr>
+                  </thead>
+                  <tbody id="getkey-accounts-tbody">
+                    <tr>
+                      <td colspan="4" class="empty-table-msg">Chưa có tài khoản nào được nạp. Hãy dán danh sách tài khoản lên trên.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+      
+    </main>
+
+    <!-- Bottom Row: Real-time Debug/Log Console -->
+    <footer class="console-section">
+      <div class="glass-card console-card">
+        <div class="console-header">
+          <div class="console-title">
+            <span class="console-dot"></span>
+            <h2>Log Console & Terminal</h2>
+          </div>
+          <button id="clear-log-btn" class="console-clear-btn">Xóa logs</button>
+        </div>
+        <div id="console-logs" class="console-body">
+          <div class="log-line log-system">[SYSTEM] Giao diện NanoBanana API Hub đã sẵn sàng. Vui lòng nhấn "Connect" để kết nối VPS Core.</div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
