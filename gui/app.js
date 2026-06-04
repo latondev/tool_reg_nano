@@ -406,7 +406,7 @@ async function _checkAccountCredit(indexValue) {
   _writeLog(`[Kie AI] Đang kiểm tra số dư cho: ${accValue.email}...`, 'request');
 
   try {
-    const responseValue = await fetch('https://api.nanobananaapi.ai/api/v1/common/credit', {
+    const responseValue = await fetch('https://api.kie.ai/api/v1/chat/credit', {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${accValue.apiKey}`,
@@ -456,7 +456,7 @@ kieCheckAllBtn.addEventListener('click', async () => {
   const promisesValue = _kieAccountsList.map(async (accValue, indexValue) => {
     if (accValue.apiKey && accValue.apiKey.trim()) {
       try {
-        const responseValue = await fetch('https://api.nanobananaapi.ai/api/v1/common/credit', {
+        const responseValue = await fetch('https://api.kie.ai/api/v1/chat/credit', {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${accValue.apiKey}`,
@@ -1013,7 +1013,10 @@ async function _checkGetKeyAccountCredit(indexValue, typeValue) {
   _writeLog(`[GetKey ${labelValue}] Đang kiểm tra số dư cho: ${accValue.email}...`, 'request');
 
   try {
-    const responseValue = await fetch('https://api.nanobananaapi.ai/api/v1/common/credit', {
+    const creditUrl = typeValue === 'nano'
+      ? 'https://api.nanobananaapi.ai/api/v1/common/credit'
+      : 'https://api.kie.ai/api/v1/chat/credit';
+    const responseValue = await fetch(creditUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${keyValue}`,

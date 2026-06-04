@@ -1398,8 +1398,212 @@ async function _handleMicrosoftLogin(pageValue, accountValue, logCallbackValue, 
   return true;
 }
 
+// =============================================================
+// LUỒNG COPY KEY NANOBANANA (tách riêng để dễ sửa độc lập)
+// =============================================================
+async function _clickAndReadKeyNano(pageValue, networkSnipedKey, logCallbackValue) {
+  // Xóa clipboard cũ
+  clipboard.writeText('');
+
+  // Click copy icon
+  logCallbackValue(`[NanoBanana] Đang tìm icon Copy trong bảng...`);
+  let copyClickedValue = false;
+  for (let iValue = 0; iValue < 10; iValue++) {
+    if (pageValue.isClosed()) return null;
+    copyClickedValue = await pageValue.evaluate(() => {
+      // CÁCH 1: class lucide-copy
+      const copySvg = document.querySelector('svg.lucide-copy');
+      if (copySvg) { (copySvg.closest('button') || copySvg).click(); return true; }
+
+      // CÁCH 2: span chứa **** → tìm button copy gần đó
+      const spanWithKey = Array.from(document.querySelectorAll('span'))
+        .find(s => s.textContent.includes('****') && s.textContent.length > 20);
+      if (spanWithKey) {
+        const td = spanWithKey.closest('td');
+        if (td) {
+          const nextTd = td.nextElementSibling;
+          if (nextTd) {
+            const copyBtn = nextTd.parentElement.querySelector('svg, button');
+            if (copyBtn) { (copyBtn.closest('button') || copyBtn).click(); return true; }
+          }
+          const innerSvg = td.querySelector('svg');
+          if (innerSvg) { (innerSvg.closest('button') || innerSvg).click(); return true; }
+        }
+      }
+
+      // CÁCH 3: button rỗng trong table
+      for (const btn of document.querySelectorAll('table button')) {
+        if (btn.innerHTML.includes('<svg') && !btn.textContent.trim()) { btn.click(); return true; }
+      }
+      return false;
+    }).catch(() => false);
+
+    if (copyClickedValue) { logCallbackValue(`[NanoBanana] Đã click icon Copy.`); break; }
+    await _waitForTimeout(1000);
+  }
+
+  if (!copyClickedValue) {
+    logCallbackValue(`[NanoBanana] Không thấy icon Copy. Fallback: click svg trong table.`);
+    await pageValue.evaluate(() => {
+      const svg = document.querySelector('table svg');
+      if (svg) (svg.closest('button') || svg).click();
+    }).catch(() => {});
+  }
+
+  await _waitForTimeout(2000);
+
+  // Đọc key: FakeClipboard → Electron clipboard → Network Sniffer → UUID scan
+  let key = await pageValue.evaluate(() => window.lastCopiedKeyValue).catch(() => null);
+
+  if (!key || !key.trim()) {
+    try { key = clipboard.readText(); } catch(e) {}
+  }
+
+  if ((!key || !key.trim()) && networkSnipedKey) {
+    logCallbackValue(`⚡ [NanoBanana] Clipboard trống, dùng Network Sniffer!`);
+    key = networkSnipedKey;
+  }
+
+  if (key && key.trim() && key.trim().length >= 20) {
+    logCallbackValue(`✅ [NanoBanana] Lấy API Key thành công: ${key.trim()}`);
+    return key.trim();
+  }
+
+  // Fallback: quét UUID trên DOM
+  logCallbackValue(`⚡ [NanoBanana] Không lấy được qua Copy hay Network. Thử quét UUID trên giao diện...`);
+  const fallback = await pageValue.evaluate(() => {
+    const re = /(?:[0-9a-f]{32})|(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+    const m = document.body.innerText.match(re);
+    if (m) return m[0];
+    for (const inp of document.querySelectorAll('input')) {
+      const v = inp.value.trim().match(re);
+      if (v) return v[0];
+    }
+    return null;
+  }).catch(() => null);
+
+  if (fallback) {
+    logCallbackValue(`✅ [NanoBanana] Quét UUID thành công: ${fallback}`);
+    return fallback;
+  }
+
+  return null;
+}
+
+// =============================================================
+// LUỒNG COPY KEY KIE AI (tách riêng để dễ sửa độc lập)
+// Bạn có thể hướng dẫn sửa hàm này mà không ảnh hưởng NanoBanana
+// =============================================================
+async function _clickAndReadKeyKie(pageValue, networkSnipedKey, logCallbackValue) {
+  // Xóa clipboard cũ
+  clipboard.writeText('');
+
+  // Click nút Copy - dựa trên HTML thực tế của Kie AI:
+  // <code>c146b30f••••••</code> ... <button><svg class="iconify iconify--mdi ..."></svg></button>
+  logCallbackValue(`[Kie AI] Đang tìm và click icon Copy để lấy key...`);
+  let copyClickedKie = false;
+  for (let iValue = 0; iValue < 15; iValue++) {
+    if (pageValue.isClosed()) break;
+    copyClickedKie = await pageValue.evaluate(() => {
+      // ƯU TIÊN: Tìm code/span chứa key bị che (dấu • hoặc *), rồi tìm button iconify--mdi trong cùng container
+      const maskedEls = Array.from(document.querySelectorAll('code, span'));
+      for (const el of maskedEls) {
+        const text = el.textContent || '';
+        // Key Kie dạng: "c146b30f••••••••••••••••••••••••" (hex + dấu chấm tròn)
+        if ((text.includes('\u2022') || text.includes('*') || text.includes('\u25cf')) && text.trim().length > 8) {
+          // Tìm container chứa cả key lẫn button
+          const container = el.closest('tr, td, div.flex, div.gap-2, li');
+          if (container) {
+            // Tìm button có svg iconify--mdi (button copy của Kie)
+            const iconSvg = container.querySelector('svg[class*="iconify--mdi"], svg[class*="iconify"]');
+            if (iconSvg) {
+              const btn = iconSvg.closest('button');
+              if (btn) { btn.click(); return 'iconify-near-masked-key'; }
+            }
+            // Fallback: button rỗng (chỉ chứa svg) gần nhất
+            const emptyBtn = Array.from(container.querySelectorAll('button'))
+              .find(b => b.querySelector('svg') && !b.textContent.trim());
+            if (emptyBtn) { emptyBtn.click(); return 'empty-btn-near-key'; }
+          }
+        }
+      }
+
+      // Fallback 1: Tìm tất cả button có svg iconify--mdi (icon copy của Kie dùng mdi:content-copy)
+      // Path của mdi:content-copy bắt đầu bằng "M19 21H8"
+      const allSvgs = Array.from(document.querySelectorAll('svg[class*="iconify--mdi"]'));
+      for (const svg of allSvgs) {
+        const path = svg.querySelector('path');
+        if (path && path.getAttribute('d') && path.getAttribute('d').startsWith('M19 21H8')) {
+          const btn = svg.closest('button');
+          if (btn) { btn.click(); return 'mdi-content-copy-path'; }
+        }
+      }
+
+      // Fallback 2: button rỗng (chỉ svg, không có text) - lấy cái đầu tiên
+      for (const btn of document.querySelectorAll('button')) {
+        if (btn.querySelector('svg[class*="iconify"]') && !btn.textContent.trim()) {
+          btn.click(); return 'iconify-empty-btn';
+        }
+      }
+
+      return false;
+    }).catch(() => false);
+
+    if (copyClickedKie) {
+      logCallbackValue(`[Kie AI] Đã click icon Copy (phương pháp: ${copyClickedKie}).`);
+      break;
+    }
+    await _waitForTimeout(800);
+  }
+
+  // Chờ 3 giây - Kie AI có thể gọi API để lấy key thật trước khi copy vào clipboard
+  logCallbackValue(`[Kie AI] Chờ clipboard nhận key (3s)...`);
+  await _waitForTimeout(3000);
+
+  // Đọc key: FakeClipboard → Electron clipboard → Network Sniffer → DOM scan
+  let key = await pageValue.evaluate(() => window.lastCopiedKeyValue).catch(() => null);
+  if (key && key.trim().length >= 10) {
+    logCallbackValue(`✅ [Kie AI] FakeClipboard: ${key.trim()}`); return key.trim();
+  }
+
+  try {
+    const sys = clipboard.readText();
+    if (sys && sys.trim().length >= 10) {
+      logCallbackValue(`✅ [Kie AI] Electron Clipboard: ${sys.trim()}`); return sys.trim();
+    }
+  } catch(e) {}
+
+  if (networkSnipedKey) {
+    logCallbackValue(`⚡ [Kie AI] Clipboard trống, dùng Network Sniffer!`);
+    return networkSnipedKey;
+  }
+
+  logCallbackValue(`⚡ [Kie AI] Thử quét UUID/key trên giao diện...`);
+  const dom = await pageValue.evaluate(() => {
+    const uuidRe = /(?:[0-9a-f]{32})|(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+    const skRe = /sk-[a-zA-Z0-9]{20,}/i;
+    for (const el of document.querySelectorAll('[data-full],[data-key],[data-value],[data-token],[data-api-key]')) {
+      for (const a of ['data-full','data-key','data-value','data-token','data-api-key']) {
+        const v = el.getAttribute(a) || ''; if (v.length >= 20) return v;
+      }
+    }
+    for (const inp of document.querySelectorAll('input')) {
+      const v = inp.value.trim();
+      if (skRe.test(v)) return v.match(skRe)[0];
+      if (uuidRe.test(v)) return v.match(uuidRe)[0];
+    }
+    const t = document.body.innerText;
+    const m = t.match(skRe) || t.match(uuidRe);
+    return m ? m[0] : null;
+  }).catch(() => null);
+
+  if (dom) { logCallbackValue(`✅ [Kie AI] DOM scan: ${dom}`); return dom; }
+  return null;
+}
+
 // Kịch bản cào key NanoBanana
 async function _runNanoBananaAutomation(eventValue, accountValue, proxyValue, logCallbackValue) {
+
   const emailValue = accountValue.email;
   const userDataDirValue = path.join(__dirname, '.profiles', `profile_nano_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`);
 
@@ -1889,129 +2093,13 @@ async function _runNanoBananaAutomation(eventValue, accountValue, proxyValue, lo
       await _waitForTimeout(3000);
     }
 
-    // Xóa bộ nhớ tạm của hệ thống để tránh lấy nhầm key cũ
-    clipboard.writeText('');
-
-    // Click copy icon (Hình 5)
-    logCallbackValue(`[NanoBanana] Đang tìm icon Copy trong bảng...`);
-    let copyClickedValue = false;
-    for (let iValue = 0; iValue < 10; iValue++) {
-      if (pageValue.isClosed()) return;
-      copyClickedValue = await pageValue.evaluate(() => {
-        // CÁCH 1: Tìm icon copy bằng class `lucide-copy`
-        const copySvg = document.querySelector('svg.lucide-copy');
-        if (copySvg) {
-          const btn = copySvg.closest('button') || copySvg;
-          btn.click();
-          return true;
-        }
-
-        // CÁCH 2: Dựa theo nội dung của hàng chứa key che khuất (chuỗi sao ****)
-        const allSpans = Array.from(document.querySelectorAll('span'));
-        const spanWithKey = allSpans.find(s => s.textContent.includes('****') && s.textContent.length > 20);
-        if (spanWithKey) {
-          const td = spanWithKey.closest('td');
-          if (td) {
-            const nextTd = td.nextElementSibling;
-            if (nextTd) {
-               // Nút copy nằm gần đó
-               const copyBtn = nextTd.parentElement.querySelector('svg, button');
-               if (copyBtn) {
-                 const finalBtn = copyBtn.closest('button') || copyBtn;
-                 finalBtn.click();
-                 return true;
-               }
-            }
-            // Thử lấy nút svg trong cùng td
-            const innerSvg = td.querySelector('svg');
-            if (innerSvg) {
-              const finalBtn = innerSvg.closest('button') || innerSvg;
-              finalBtn.click();
-              return true;
-            }
-          }
-        }
-        
-        // CÁCH 3: Tìm nút button trống nằm trong td
-        const buttons = Array.from(document.querySelectorAll('table button'));
-        for(const btn of buttons) {
-            if(btn.innerHTML.includes('<svg') && !btn.textContent.trim()) {
-                btn.click();
-                return true;
-            }
-        }
-        return false;
-      }).catch(() => false);
-
-      if (copyClickedValue) {
-        logCallbackValue(`[NanoBanana] Đã click icon Copy.`);
-        break;
-      }
-      await _waitForTimeout(1000);
-    }
-
-    if (!copyClickedValue) {
-      logCallbackValue(`[NanoBanana] Không tìm thấy icon Copy. Thử click trực tiếp vào svg trong bảng.`);
-      await pageValue.evaluate(() => {
-        const tableValue = document.querySelector("table");
-        if (tableValue) {
-          const svgValue = tableValue.querySelector("svg");
-          if (svgValue) {
-            const btnValue = svgValue.closest("button") || svgValue;
-            btnValue.click();
-          }
-        }
-      }).catch(() => false);
-    }
-
-    await _waitForTimeout(2000);
-    // Lấy key đã copy
-    let apiKeyValue = await pageValue.evaluate(() => window.lastCopiedKeyValue).catch(() => null);
-
-    // Fallback 1: Cố gắng đọc từ clipboard thật của hệ thống (nhờ Electron API)
-    if (!apiKeyValue || apiKeyValue.trim() === '') {
-      try {
-        apiKeyValue = clipboard.readText();
-      } catch(e) {}
-    }
-
-    // Fallback 2: Sử dụng Network Sniffer (siêu đáng tin cậy vì đọc thẳng từ gói tin API)
-    if ((!apiKeyValue || apiKeyValue.trim() === '') && networkSnipedKey) {
-      logCallbackValue(`⚡ [NanoBanana] Đọc Clipboard thất bại. Bù lại: Đã lấy được API Key qua Network Sniffer!`);
-      apiKeyValue = networkSnipedKey;
-    }
-
-    if (apiKeyValue && apiKeyValue.trim() && apiKeyValue.length >= 20) {
-      logCallbackValue(`✅ [NanoBanana] Lấy API Key thành công: ${apiKeyValue.trim()}`);
-      _saveKeyToCache(emailValue, apiKeyValue.trim(), 'nano');
-      eventValue.sender.send('api-key-detected', { email: emailValue, apiKey: apiKeyValue.trim(), site: 'nano' });
+    // === LUỒNG COPY KEY NANOBANANA ===
+    const nanoKeyResult = await _clickAndReadKeyNano(pageValue, networkSnipedKey, logCallbackValue);
+    if (nanoKeyResult) {
+      _saveKeyToCache(emailValue, nanoKeyResult, 'nano');
+      eventValue.sender.send('api-key-detected', { email: emailValue, apiKey: nanoKeyResult, site: 'nano' });
     } else {
-      logCallbackValue(`⚡ [NanoBanana] Không lấy được qua Copy hay Network. Thử quét UUID trên giao diện...`);
-      const fallbackKeyValue = await pageValue.evaluate(() => {
-        const textValue = document.body.innerText;
-        // Quét UUID thông thường trên UI (nhưng Nanobanana đã giấu đoạn giữa thành dấu ***)
-        // Nên cách này thường sẽ vô dụng nếu trang đã mã hóa hiển thị
-        const uuidRegexValue = /(?:[0-9a-f]{32})|(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
-        const matchValue = textValue.match(uuidRegexValue);
-        if (matchValue) return matchValue[0];
-        
-        // Quét thêm trong các thẻ input (đề phòng hiển thị ẩn)
-        const inputsValue = document.querySelectorAll('input');
-        for (const inputValue of inputsValue) {
-          const valValue = inputValue.value.trim();
-          const inputMatchValue = valValue.match(uuidRegexValue);
-          if (inputMatchValue) return inputMatchValue[0];
-        }
-        return null;
-      });
-
-      if (fallbackKeyValue) {
-        logCallbackValue(`✅ [NanoBanana] Quét UUID thành công: ${fallbackKeyValue}`);
-        _saveKeyToCache(emailValue, fallbackKeyValue, 'nano');
-        eventValue.sender.send('api-key-detected', { email: emailValue, apiKey: fallbackKeyValue, site: 'nano' });
-      } else {
-        logCallbackValue(`❌ [NanoBanana] Thất bại khi lấy API Key.`);
-      }
+      logCallbackValue(`❌ [NanoBanana] Thất bại khi lấy API Key.`);
     }
 
     await _waitForTimeout(3000);
@@ -2054,8 +2142,9 @@ async function _runKieAutomation(eventValue, accountValue, proxyValue, logCallba
     logCallbackValue(`[Kie AI] Khởi chạy trình duyệt CloakBrowser...`);
     contextValue = await launchPersistentContext(launchOptionsValue);
 
-    // Ghi đè clipboard API
+    // Ghi đè clipboard API (y hệt NanoBanana - bắt cả navigator.clipboard.writeText lẫn execCommand)
     await contextValue.addInitScript(() => {
+      // 1. Intercept navigator.clipboard.writeText (API hiện đại)
       const originalClipboard = navigator.clipboard;
       const fakeClipboard = {
         writeText: async (text) => {
@@ -2066,8 +2155,29 @@ async function _runKieAutomation(eventValue, accountValue, proxyValue, logCallba
         readText: async () => window.lastCopiedKeyValue
       };
       Object.defineProperty(navigator, 'clipboard', { value: fakeClipboard, configurable: true });
+
+      // 2. Intercept execCommand('copy') - cách cũ nhiều trang vẫn dùng
+      const origExecCommand = document.execCommand.bind(document);
+      document.execCommand = function(cmd, ...args) {
+        const result = origExecCommand(cmd, ...args);
+        if (cmd === 'copy') {
+          const sel = window.getSelection ? window.getSelection().toString() : '';
+          if (sel) window.lastCopiedKeyValue = sel;
+        }
+        return result;
+      };
+
+      // 3. Bắt copy event truyền thống (DataTransfer API)
       document.addEventListener('copy', (e) => {
-        const sel = window.getSelection().toString();
+        try {
+          const clipData = e.clipboardData || window.clipboardData;
+          if (clipData) {
+            const text = clipData.getData('text/plain') || clipData.getData('text');
+            if (text && text.trim()) { window.lastCopiedKeyValue = text.trim(); return; }
+          }
+        } catch(err) {}
+        // Fallback: selection
+        const sel = window.getSelection ? window.getSelection().toString() : '';
         if (sel) window.lastCopiedKeyValue = sel;
       });
     });
@@ -2089,6 +2199,44 @@ async function _runKieAutomation(eventValue, accountValue, proxyValue, logCallba
 
     const pageValue = await contextValue.newPage();
     try { await contextValue.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => null); } catch(e) {}
+
+    // ==========================================
+    // BỘ ĐÁNH HƠI MẠNG (NETWORK SNIFFER) - Kie AI
+    // ==========================================
+    // Bắt API Key trực tiếp từ các gói tin JSON trả về khi click Copy hoặc load trang API Keys
+    let networkSnipedKey = null;
+    pageValue.on('response', async (response) => {
+      try {
+        const url = response.url();
+        // Lắng nghe tất cả response từ kie.ai (API keys thường được trả về qua endpoint /api/)
+        if ((url.includes('kie.ai') || url.includes('/api/')) && response.request().resourceType() === 'fetch') {
+          const contentType = response.headers()['content-type'] || '';
+          if (contentType.includes('application/json')) {
+            const text = await response.text().catch(() => '');
+            if (!text) return;
+            // Tìm key theo chuẩn UUID hoặc sk-... hoặc hex 32 chars
+            const keyRegex = /(?:sk-[a-zA-Z0-9]{20,})|(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})|(?:[0-9a-f]{32})/gi;
+            const matches = text.match(keyRegex);
+            if (matches && matches.length > 0) {
+              // Lọc bỏ các ID thông thường (user_id, session_id) bằng cách kiểm tra context trong JSON
+              for (const m of matches) {
+                // Ưu tiên key xuất hiện gần trường "key", "api_key", "value"
+                const keyContextRegex = /"(?:key|api_key|apiKey|value|token|secret)"\s*:\s*"([^"]+)"/gi;
+                let ctxMatch;
+                while ((ctxMatch = keyContextRegex.exec(text)) !== null) {
+                  if (ctxMatch[1].length >= 20) {
+                    networkSnipedKey = ctxMatch[1];
+                    return; // Dừng ngay khi tìm được key từ context
+                  }
+                }
+                // Fallback: lưu match đầu tiên
+                if (!networkSnipedKey) networkSnipedKey = m;
+              }
+            }
+          }
+        }
+      } catch (e) {}
+    });
     
     pageValue.setDefaultNavigationTimeout(60000); // Đảm bảo các proxy chậm không bị timeout 30s
     logCallbackValue(`[Kie AI] Đi tới trang chủ https://kie.ai/`);
@@ -2235,100 +2383,15 @@ async function _runKieAutomation(eventValue, accountValue, proxyValue, logCallba
       await _waitForTimeout(2000);
     }
 
-    // Xóa clipboard hệ thống
-    clipboard.writeText('');
-
-    // Click nút Copy (biểu tượng copy) trong bảng API Keys
-    logCallbackValue(`[Kie AI] Đang tìm và click icon Copy để lấy key...`);
-    let copyClickedKie = false;
-    for (let iValue = 0; iValue < 10; iValue++) {
-      if (pageValue.isClosed()) break;
-      copyClickedKie = await pageValue.evaluate(() => {
-        // Cách 1: Kie AI dùng icon class "iconify--mdi" (không phải lucide-copy)
-        const iconifyBtn = document.querySelector('svg.iconify--mdi');
-        if (iconifyBtn) {
-          const btn = iconifyBtn.closest('button');
-          if (btn) { btn.click(); return true; }
-        }
-
-        // Cách 2: Tìm button nằm ngay sau thẻ <code> chứa key bị che (****)
-        const codeEls = Array.from(document.querySelectorAll('code'));
-        for (const code of codeEls) {
-          const text = code.textContent || '';
-          if (text.includes('*') && text.length > 10) {
-            // Button copy thường nằm trong cùng div cha
-            const parent = code.closest('div');
-            if (parent) {
-              const btn = parent.querySelector('button');
-              if (btn) { btn.click(); return true; }
-            }
-          }
-        }
-
-        // Cách 3: tìm button rỗng (chỉ chứa svg) gần key row
-        const allBtns = Array.from(document.querySelectorAll('button'));
-        for (const btn of allBtns) {
-          if (btn.querySelector('svg') && !btn.textContent.trim()) { btn.click(); return true; }
-        }
-
-        // Cách 4: aria-label / title
-        const attrBtn = document.querySelector('[aria-label*="copy" i], [title*="copy" i]');
-        if (attrBtn) { attrBtn.click(); return true; }
-        return false;
-      }).catch(() => false);
-
-      if (copyClickedKie) {
-        logCallbackValue(`[Kie AI] Đã click icon Copy.`);
-        break;
-      }
-      await _waitForTimeout(1000);
+    // === LUỒNG COPY KEY KIE AI ===
+    const kieKeyResult = await _clickAndReadKeyKie(pageValue, networkSnipedKey, logCallbackValue);
+    if (kieKeyResult) {
+      _saveKeyToCache(emailValue, kieKeyResult, 'kie');
+      eventValue.sender.send('api-key-detected', { email: emailValue, apiKey: kieKeyResult, site: 'kie' });
+    } else {
+      logCallbackValue(`❌ [Kie AI] Không lấy được API Key tự động. Trình duyệt mở 30 giây để kiểm tra thủ công.`);
+      await _waitForTimeout(30000);
     }
-
-    await _waitForTimeout(1500);
-
-    // Cào API Key: ưu tiên FakeClipboard -> Clipboard thật -> UUID Regex scan
-    let apiKeyValue = await pageValue.evaluate(() => window.lastCopiedKeyValue).catch(() => null);
-    if (!apiKeyValue || apiKeyValue.trim() === '') {
-      try { apiKeyValue = clipboard.readText(); } catch(e) {}
-    }
-
-    // Fallback: UUID / sk- scan trên DOM
-    if (!apiKeyValue || apiKeyValue.trim() === '') {
-      apiKeyValue = await pageValue.evaluate(() => {
-        const textValue = document.body.innerText;
-        // UUID format (8-4-4-4-12)
-        const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-        const uuidMatch = textValue.match(uuidRegex);
-        if (uuidMatch) return uuidMatch[0];
-        // Hex 32 chars (kiểu NanoBanana / Kie)
-        const hexRegex = /\b[0-9a-f]{32}\b/i;
-        const hexMatch = textValue.match(hexRegex);
-        if (hexMatch) return hexMatch[0];
-        // Quét trong input value
-        const inputs = document.querySelectorAll('input');
-        for (const input of inputs) {
-          const val = input.value.trim();
-          if (uuidRegex.test(val)) return val.match(uuidRegex)[0];
-          if (hexRegex.test(val)) return val.match(hexRegex)[0];
-        }
-        // Quét trong code elements (key bị che)
-        const codes = document.querySelectorAll('code');
-        for (const code of codes) {
-          const val = code.getAttribute('data-full') || code.dataset.key || '';
-          if (val.length >= 20) return val;
-        }
-        return null;
-      }).catch(() => null);
-
-      if (apiKeyValue) {
-        logCallbackValue(`✅ [Kie AI] Lấy API Key thành công: ${apiKeyValue.trim()}`);
-        _saveKeyToCache(emailValue, apiKeyValue.trim(), 'kie');
-        eventValue.sender.send('api-key-detected', { email: emailValue, apiKey: apiKeyValue.trim(), site: 'kie' });
-      } else {
-        logCallbackValue(`[Kie AI] Không tìm thấy API Key tự động. Trình duyệt mở 30 giây để kiểm tra thủ công.`);
-        await _waitForTimeout(30000);
-      }
-    } // end if (!apiKeyValue || ...)
 
     await _waitForTimeout(3000);
     await contextValue.close();
