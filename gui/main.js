@@ -1491,6 +1491,48 @@ async function _clickAndReadKeyNano(pageValue, networkSnipedKey, logCallbackValu
 }
 
 // =============================================================
+// HELPER TỰ ĐỘNG CLICK CLOUDFLARE "I AM HUMAN"
+// =============================================================
+async function _solveCloudflareIfPresent(pageValue, logCallbackValue) {
+  try {
+    // 1. Kiểm tra iframe Cloudflare (Turnstile)
+    const turnstileIframe = pageValue.frameLocator('iframe[src*="turnstile"], iframe[src*="cloudflare"], iframe[src*="challenges"]').first();
+    const iframeCheckbox = turnstileIframe.locator('.ctp-checkbox-label, input[type="checkbox"], #cb-c').first();
+    
+    let isIframeVisible = false;
+    try { isIframeVisible = await iframeCheckbox.isVisible({ timeout: 2000 }); } catch (e) {}
+
+    if (isIframeVisible) {
+      logCallbackValue(`🛡️ [Bảo mật] Phát hiện Cloudflare "I am human" (Iframe) - Đang tự động click...`);
+      const box = await iframeCheckbox.boundingBox();
+      if (box) {
+        await pageValue.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 });
+        await pageValue.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      } else {
+        await iframeCheckbox.click({ force: true });
+      }
+      logCallbackValue(`🛡️ [Bảo mật] Đã click! Chờ 6 giây để hệ thống duyệt...`);
+      await _waitForTimeout(6000);
+      return;
+    }
+
+    // 2. Kiểm tra trên trang chính (trực tiếp không qua iframe)
+    const mainCheckbox = pageValue.locator('.ctp-checkbox-label, #cb-c, label:has-text("Verify you are human"), label:has-text("I am human")').first();
+    let isMainVisible = false;
+    try { isMainVisible = await mainCheckbox.isVisible({ timeout: 1000 }); } catch (e) {}
+
+    if (isMainVisible) {
+      logCallbackValue(`🛡️ [Bảo mật] Phát hiện Cloudflare "I am human" (Main) - Đang tự động click...`);
+      await mainCheckbox.click({ force: true });
+      logCallbackValue(`🛡️ [Bảo mật] Đã click! Chờ 6 giây để hệ thống duyệt...`);
+      await _waitForTimeout(6000);
+    }
+  } catch (err) {
+    // Không làm gì nếu lỗi (nghĩa là không có Cloudflare)
+  }
+}
+
+// =============================================================
 // LUỒNG COPY KEY KIE AI (tách riêng để dễ sửa độc lập)
 // Bạn có thể hướng dẫn sửa hàm này mà không ảnh hưởng NanoBanana
 // =============================================================
@@ -2398,11 +2440,17 @@ async function _runKieAutomation(eventValue, accountValue, proxyValue, logCallba
     try { await pageValue.bringToFront(); } catch(e) {}
     await _waitForTimeout(3000);
 
+    // Xử lý Cloudflare nếu có chặn sau khi login
+    await _solveCloudflareIfPresent(pageValue, logCallbackValue);
+
     // Điều hướng thẳng tới trang API Keys của Kie AI
     logCallbackValue(`[Kie AI] Đang điều hướng tới trang API Keys...`);
     await pageValue.goto('https://kie.ai/api-key', { waitUntil: 'domcontentloaded' }).catch(() => null);
     await pageValue.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => null);
     await _waitForTimeout(2500);
+
+    // Xử lý Cloudflare nếu trang /api-key bị chặn
+    await _solveCloudflareIfPresent(pageValue, logCallbackValue);
 
     // Kiểm tra URL xem đã vào đúng trang chưa
     const kieApiUrl = pageValue.url();
