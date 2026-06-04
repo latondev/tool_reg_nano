@@ -1491,31 +1491,31 @@ async function _clickAndReadKeyNano(pageValue, networkSnipedKey, logCallbackValu
 }
 
 // =============================================================
-// HELPER TỰ ĐỘNG CLICK CLOUDFLARE "I AM HUMAN"
+// HELPER TỰ ĐỘNG CLICK CLOUDFLARE & HCAPTCHA "I AM HUMAN"
 // =============================================================
 async function _solveCloudflareIfPresent(pageValue, logCallbackValue) {
   try {
-    // Nhận diện nhanh xem trang có đang bị Cloudflare chặn không (chờ tối đa 5s)
-    let isCloudflare = false;
+    // Nhận diện nhanh xem trang có đang bị Captcha chặn không (chờ tối đa 5s)
+    let isCaptcha = false;
     for (let i = 0; i < 5; i++) {
       const title = await pageValue.title().catch(() => '');
       const text = await pageValue.evaluate(() => document.body.innerText).catch(() => '');
-      const hasIframe = await pageValue.locator('iframe[src*="turnstile"], iframe[src*="cloudflare"], iframe[src*="challenges"]').count().catch(() => 0);
+      const hasIframe = await pageValue.locator('iframe[src*="turnstile"], iframe[src*="cloudflare"], iframe[src*="challenges"], iframe[src*="hcaptcha"]').count().catch(() => 0);
       
-      if (title.includes('Just a moment') || title.includes('Cloudflare') || text.includes('Verify you are human') || hasIframe > 0) {
-        isCloudflare = true;
+      if (title.includes('Just a moment') || title.includes('Cloudflare') || text.includes('Verify you are human') || text.includes('complete the verification') || hasIframe > 0) {
+        isCaptcha = true;
         break;
       }
       await _waitForTimeout(1000);
     }
 
-    if (!isCloudflare) return; // Không có CF, đi tiếp bình thường
+    if (!isCaptcha) return; // Không có Captcha, đi tiếp bình thường
 
-    logCallbackValue(`🛡️ [Bảo mật] Trang đang bị Cloudflare chặn. Đang thử tự động click...`);
+    logCallbackValue(`🛡️ [Bảo mật] Trang đang bị Captcha chặn. Đang thử tự động click...`);
     
-    // 1. Kiểm tra iframe Cloudflare (Turnstile)
-    const turnstileIframe = pageValue.frameLocator('iframe[src*="turnstile"], iframe[src*="cloudflare"], iframe[src*="challenges"]').first();
-    const iframeCheckbox = turnstileIframe.locator('.ctp-checkbox-label, input[type="checkbox"], #cb-c').first();
+    // 1. Kiểm tra iframe Cloudflare (Turnstile) hoặc hCaptcha
+    const captchaIframe = pageValue.frameLocator('iframe[src*="turnstile"], iframe[src*="cloudflare"], iframe[src*="challenges"], iframe[src*="hcaptcha"]').first();
+    const iframeCheckbox = captchaIframe.locator('.ctp-checkbox-label, input[type="checkbox"], #cb-c, #checkbox').first();
     
     let isIframeVisible = false;
     try { 
@@ -1536,7 +1536,7 @@ async function _solveCloudflareIfPresent(pageValue, logCallbackValue) {
       await _waitForTimeout(4000);
     } else {
       // 2. Kiểm tra trên trang chính (trực tiếp không qua iframe)
-      const mainCheckbox = pageValue.locator('.ctp-checkbox-label, #cb-c, label:has-text("Verify you are human"), label:has-text("I am human")').first();
+      const mainCheckbox = pageValue.locator('.ctp-checkbox-label, #cb-c, #checkbox, label:has-text("Verify you are human"), label:has-text("I am human")').first();
       let isMainVisible = false;
       try { 
         await mainCheckbox.waitFor({ state: 'visible', timeout: 3000 });
@@ -1553,18 +1553,18 @@ async function _solveCloudflareIfPresent(pageValue, logCallbackValue) {
     // =========================================================
     // CHỜ NGƯỜI DÙNG GIẢI TAY (60s) NẾU TỰ ĐỘNG KHÔNG QUA ĐƯỢC
     // =========================================================
-    logCallbackValue(`🛡️ [Bảo mật] Kiểm tra lại xem đã vượt qua Cloudflare chưa...`);
+    logCallbackValue(`🛡️ [Bảo mật] Kiểm tra lại xem đã vượt qua Captcha chưa...`);
     for (let c = 0; c < 60; c++) {
       if (pageValue.isClosed()) break;
       
       const title = await pageValue.title().catch(() => '');
       const text = await pageValue.evaluate(() => document.body.innerText).catch(() => '');
-      const stillHasIframe = await pageValue.locator('iframe[src*="turnstile"], iframe[src*="cloudflare"]').count().catch(() => 0);
+      const stillHasIframe = await pageValue.locator('iframe[src*="turnstile"], iframe[src*="cloudflare"], iframe[src*="hcaptcha"]').count().catch(() => 0);
       
-      const stillHasCaptcha = title.includes('Just a moment') || title.includes('Cloudflare') || text.includes('Verify you are human') || stillHasIframe > 0;
+      const stillHasCaptcha = title.includes('Just a moment') || title.includes('Cloudflare') || text.includes('Verify you are human') || text.includes('complete the verification') || stillHasIframe > 0;
       
       if (!stillHasCaptcha) {
-        logCallbackValue(`✅ [Bảo mật] Đã vượt qua Cloudflare, tiếp tục xử lý...`);
+        logCallbackValue(`✅ [Bảo mật] Đã vượt qua Captcha, tiếp tục xử lý...`);
         break;
       }
       if (c === 0) {
